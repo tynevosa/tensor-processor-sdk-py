@@ -10,6 +10,7 @@
 from __future__ import absolute_import
 
 import requests
+import time
 
 class Tpu(object):
     def __init__(self, apiKey=None):
@@ -18,6 +19,7 @@ class Tpu(object):
             'tpu-api-key': apiKey
         }
         self.base_url = 'http://95.217.158.17:5000/api'
+        self.timeout = 600
 
     def __del__(self):
         pass
@@ -69,6 +71,25 @@ class Tpu(object):
             "model": model,
             "input": input
         }
-        return requests.post(f"{self.base_url}/prediction",
-            headers=self.default_headers,
-            json=json).json()
+        try:
+            resp = requests.post(f"{self.base_url}/prediction",
+                headers=self.default_headers,
+                json=json).json()
+            start_time = time.time()
+            while True:
+                time.sleep(1)
+                status = requests.get(f"{self.base_url}/prediction/status/{resp['id']}",
+                            headers=self.default_headers).json()
+                if status['status'] == "pending":
+                    if (time.time() - start_time) > self.timeout:
+                        return "Execution Timeout!"
+                else:
+                    if status['status'] == "success":
+                        result = requests.get(f"{self.base_url}/prediction/result/{status['prediction_id']}",
+                                    headers=self.default_headers).json()
+                        return result["output"]
+                    else:
+                        return None
+        except Exception as e:
+            print(e)
+            return None
